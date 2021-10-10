@@ -175,5 +175,119 @@ namespace AppScheduler.Controllers
             // If we got this far, something failed, redisplay form
             return View(model);
         }
+
+        //Doctor registration
+        [AllowAnonymous]
+        public ActionResult RegisterDoctor()
+        {
+            var viewModel = new DoctorFormViewModel()
+            {
+                Specializations = _unitOfWork.Specializations.GetSpecializations()
+                // Doctors = _doctorRepository.GetDectors()
+            };
+            return View("DoctorForm", viewModel);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<ActionResult> RegisterDoctor(DoctorFormViewModel viewModel)
+        {
+            if (ModelState.IsValid)
+            {
+                var user = new ApplicationUser()
+                {
+                    UserName = viewModel.RegisterViewModel.Email,
+                    Email = viewModel.RegisterViewModel.Email,
+                    IsActive = true
+                };
+                var result = await UserManager.CreateAsync(user, viewModel.RegisterViewModel.Password);
+
+                if (result.Succeeded)
+                {
+
+                    UserManager.AddToRole(user.Id, RoleName.DoctorRoleName);
+
+
+                    Doctor doctor = new Doctor()
+                    {
+                        Name = viewModel.Name,
+                        Phone = viewModel.Phone,
+                        Address = viewModel.Address,
+                        IsAvailable = true,
+                        SpecializationId = viewModel.Specialization,
+                        PhysicianId = user.Id
+                    };
+                    UserManager.AddClaim(user.Id, new Claim(ClaimTypes.GivenName, doctor.Name));
+                    //Mapper.Map<DoctorFormViewModel, Doctor>(model, doctor);
+                    _unitOfWork.Doctors.Add(doctor);
+                    _unitOfWork.Complete();
+                    return RedirectToAction("Index", "Doctors");
+                }
+
+                this.AddErrors(result);
+            }
+
+            viewModel.Specializations = _unitOfWork.Specializations.GetSpecializations();
+
+            // If we got this far, something failed, redisplay form
+            return View("DoctorForm", viewModel);
+        }
+
+        //list users
+        public ActionResult Index()
+        {
+            var usersWithRoles = _unitOfWork.Users.GetUsers();
+            return View(usersWithRoles);
+        }
+
+
+        public ActionResult Edit(string id)
+        {
+            if (id == null)
+            {
+                return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+            }
+
+            var user = _unitOfWork.Users.GetUser(id);
+            if (user == null)
+            {
+                return HttpNotFound();
+            }
+
+
+            var viewModel = new UserViewModel()
+            {
+                Id = user.Id,
+                Email = user.Email,
+                IsActive = user.IsActive,
+            };
+            return View(viewModel);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult Edit(UserViewModel editUser)
+        {
+            if (ModelState.IsValid)
+
+            {
+                var user = _unitOfWork.Users.GetUser(editUser.Id);
+                if (user == null)
+                {
+                    return HttpNotFound();
+                }
+
+                //user.UserName = editUser.Email;
+                // user.Id = editUser.Id;
+                user.Email = editUser.Email;
+                user.IsActive = editUser.IsActive;
+                _unitOfWork.Complete();
+
+                return RedirectToAction("Index");
+            }
+
+            ModelState.AddModelError("", "Something failed.");
+            return View(editUser);
+        }
     }
 }
